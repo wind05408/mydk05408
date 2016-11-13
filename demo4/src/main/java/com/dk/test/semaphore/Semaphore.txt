@@ -1,0 +1,132 @@
+一，Semaphore概念
+信号量(Semaphore)，有时被称为信号灯，是在多线程环境下使用的一种设施, 它负责协调各个线程, 以保证它们能够正确、合理的使用公共资源。
+    一个计数信号量。从概念上讲，信号量维护了一个[许可集]。如有必要，在许可可用前会阻塞每一个 acquire()，然后再获取该许可。
+    每个 release() 添加一个许可，从而可能释放一个正在阻塞的获取者。
+    但是，不使用实际的许可对象，Semaphore 只对可用许可的号码进行计数，并采取相应的行动。
+    拿到信号量的线程可以进入代码，否则就等待。通过acquire()和release()获取和释放访问许可。
+
+    //permits 初始许可数，也就是最大访问线程数,会创建一个NonfairSync对象实例，并将state值设为传入的值（permits ）
+    public Semaphore(int permits) {
+        sync = new NonfairSync(permits);//非公平
+    }
+
+    //permits 初始许可数，也就是最大访问线程数
+    //fair 当设置为false时，线程获取许可的顺序是无序的，也就是说新线程可能会比等待的老线程会先获得许可;
+    //     当设置为true时，信号量保证它们调用的顺序（即先进先出；FIFO）
+    public Semaphore(int permits, boolean fair) {
+        sync = (fair)? new FairSync(permits) : new NonfairSync(permits);
+    }
+
+二。API
+acquire
+public void acquire()
+                 throws InterruptedException
+    从此信号量获取一个许可，在提供一个许可前一直将线程阻塞，否则线程被中断。获取一个许可（如果提供了一个）并立即返回，
+    将可用的许可数减 1。
+    如果没有可用的许可，则在发生以下两种情况之一前，禁止将当前线程用于线程安排目的并使其处于休眠状态：
+    某些其他线程调用此信号量的 release() 方法，并且当前线程是下一个要被分配许可的线程；或者
+    其他某些线程中断当前线程。
+    如果当前线程：
+    被此方法将其已中断状态设置为 on ；或者
+    在等待许可时被中断。
+    则抛出 InterruptedException，并且清除当前线程的已中断状态。
+    抛出：
+    InterruptedException - 如果当前线程被中断
+
+release
+public void release()
+    释放一个许可，将其返回给信号量。释放一个许可，将可用的许可数增加 1。
+    如果任意线程试图获取许可，则选中一个线程并将刚刚释放的许可给予它。然后针对线程安排目的启用（或再启用）该线程。
+    不要求释放许可的线程必须通过调用 acquire() 来获取许可。通过应用程序中的编程约定来建立信号量的正确用法。
+
+
+void  acquire()   从信号量获取一个许可，如果无可用许可前 将一直阻塞等待，
+void acquire(int permits)  获取指定数目的许可，如果无可用许可前,也将会一直阻塞等待
+boolean tryAcquire()   从信号量尝试获取一个许可，如果无可用许可，直接返回false，不会阻塞
+boolean tryAcquire(int permits)   尝试获取指定数目的许可，如果无可用许可直接返回false，
+boolean tryAcquire(int permits, long timeout, TimeUnit unit)   在指定的时间内尝试从信号量中获取许可，如果在指定的时间内获取成功，返回true，否则返回false
+void release()  释放一个许可，别忘了在finally中使用，注意：多次调用该方法，会使信号量的许可数增加，达到动态扩展的效果，如：初始permits 为1， 调用了两次release，最大许可会改变为2
+int availablePermits() 获取当前信号量可用的许可
+void acquireUninterruptibly() 会忽略线程的中断而且不会抛出任何异常.
+
+int availablePermits() ：返回此信号量中当前可用的许可证数。
+int getQueueLength()：返回正在等待获取许可证的线程数。
+boolean hasQueuedThreads() ：是否有线程正在等待获取许可证。
+void reducePermits(int reduction) ：减少reduction个许可证。是个protected方法。
+Collection getQueuedThreads() ：返回所有等待获取许可证的线程集合。是个protected方法。
+
+三。一些类的实现
+1.NonfairSync的实现
+    NonfairSync间接的继承了AbstractQueuedSynchronizer实现
+    final static class NonfairSync extends Sync {
+        private static final long serialVersionUID = -2694183684443567898L;
+
+        NonfairSync(int permits) {
+            super(permits);
+        }
+
+        protected int tryAcquireShared(int acquires) {
+            return nonfairTryAcquireShared(acquires);
+        }
+    }
+
+    abstract static class Sync extends AbstractQueuedSynchronizer {
+        private static final long serialVersionUID = 1192457210091910933L;
+
+        Sync(int permits) {
+            setState(permits);
+        }
+    }
+
+    protected final void setState(int newState) {
+        state = newState;
+    }
+
+
+2.Semaphore# tryAcquire方法
+    public boolean tryAcquire() {
+        return sync.nonfairTryAcquireShared(1) >= 0;
+    }
+
+    //nonfairTryAcquireShared方法通过获取当前的state，以此state减去需要获取信号量的个数，作为剩余个数，如果结果小于0，返回此剩余的个数；
+    //如果结果大于等于0，则基于CAS将state的值设置为剩余个数，当前步骤用到了for循环，所以只有在结果小于0或设置state值成功的情况下才会退出。
+    //如果返回的剩余许可个数大于0，tryAcquire方法则返回true；其余返回false。
+    final int nonfairTryAcquireShared(int acquires) {
+        for (;;) {
+            int available = getState();
+            int remaining = available - acquires;
+            if (remaining < 0 ||
+                compareAndSetState(available, remaining))
+                return remaining;
+        }
+    }
+    //AbstractQueuedSynchronizer的compareAndSetState方法
+    protected final boolean compareAndSetState(int expect, int update) {
+        // See below for intrinsics setup to support this
+        return unsafe.compareAndSwapInt(this, stateOffset, expect, update);
+    }
+
+3.release方法，释放一个许可
+    public void release() {
+        sync.releaseShared(1);
+    }
+
+    //AbstractQueuedSynchronizer的releaseShared方法
+    public final boolean releaseShared(int arg) {
+        if (tryReleaseShared(arg)) {
+            doReleaseShared();
+            return true;
+        }
+    }
+
+    //release方法间接的调用了Sync的tryReleaseShared方法，该方法基于Cas 将state的值设置为state+1，一直循环确保CAS操作成功，成功后返回true。
+    protected final boolean tryReleaseShared(int releases) {
+        for (;;) {
+            int p = getState();
+            if (compareAndSetState(p, p + releases))
+                return true;
+        }
+    }
+    //可以看得出，Semaphore采用了CAS来实现，尽量避免锁的使用，提高了性能。
+
+http://blog.csdn.net/java2000_wl/article/details/23556859
