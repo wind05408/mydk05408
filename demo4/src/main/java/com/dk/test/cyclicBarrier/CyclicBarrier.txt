@@ -1,0 +1,49 @@
+一.CyclicBarrier的概念
+    一个同步辅助类，它允许一组线程互相等待，直到到达某个公共屏障点 (common barrier point)。
+    在涉及一组固定大小的线程的程序中，这些线程必须不时地互相等待，此时 CyclicBarrier 很有用。
+    因为该 barrier 在释放等待线程后可以重用，所以称它为循环 的 barrier。
+
+
+二。CyclicBarrier的API：
+１．await
+  public int await()throws InterruptedException,BrokenBarrierException
+  在所有参与者都已经在此 barrier 上调用 await方法之前，将一直等待。
+  如果当前线程不是将到达的最后一个线程，出于调度目的，将禁用它，且在发生以下情况之一前，该线程将一直处于休眠状态：
+  最后一个线程到达；或者
+  其他某个线程中断当前线程；或者
+  其他某个线程中断另一个等待线程；或者
+  其他某个线程在等待 barrier 时超时；或者
+  其他某个线程在此 barrier 上调用 reset()。
+  如果当前线程：
+  在进入此方法时已经设置了该线程的中断状态；或者
+  在等待时被中断
+  则抛出 InterruptedException，并且清除当前线程的已中断状态。如果在线程处于等待状态时 barrier 被 reset()，
+  或者在调用 await 时 barrier 被损坏，抑或任意一个线程正处于等待状态，则抛出 BrokenBarrierException 异常。
+  如果任何线程在等待时被 中断，则其他所有等待线程都将抛出 BrokenBarrierException 异常，并将 barrier 置于损坏状态。
+  如果当前线程是最后一个将要到达的线程，并且构造方法中提供了一个非空的屏障操作，则在允许其他线程继续运行之前，当前线程将运行该操作。
+  如果在执行屏障操作过程中发生异常，则该异常将传播到当前线程中，并将 barrier 置于损坏状态。
+
+  返回：
+  到达的当前线程的索引，其中，索引 getParties() - 1 指示将到达的第一个线程，零指示最后一个到达的线程
+  抛出：
+  InterruptedException - 如果当前线程在等待时被中断
+  BrokenBarrierException - 如果另一个 线程在当前线程等待时被中断或超时，或者重置了 barrier，或者在调用 await 时 barrier 被损坏，
+  抑或由于异常而导致屏障操作（如果存在）失败。
+
+  2.int getNumberWaiting()  返回当前在屏障处等待的参与者数目。
+    int	getParties() 返回要求启动此 barrier 的参与者数目。
+    boolean	isBroken()  查询此屏障是否处于损坏状态。
+    void reset() 将屏障重置为其初始状态。
+
+
+三.CyclicBarrier与CountDownLatch的不同
+  1.CountDownLatch的计数器只能使用一次。而CyclicBarrier的计数器可以使用reset() 方法重置。
+  所以CyclicBarrier能处理更为复杂的业务场景，比如如果计算发生错误，可以重置计数器，并让线程们重新执行一次。
+  2.CyclicBarrier还提供其他有用的方法，比如getNumberWaiting方法可以获得CyclicBarrier阻塞的线程数量。
+  isBroken方法用来知道阻塞的线程是否被中断。比如以下代码执行完之后会返回true
+  3.CountDownLatch 适用于一组线程和另一个主线程之间的工作协作。一个主线程等待一组工作线程的任务完毕才继续它的执行是使用CountDownLatch的主要场景；
+  CyclicBarrier 用于一组或几组线程，比如一组线程需要在一个时间点上达成一致，例如同时开始一个工作。
+  4.CyclicBarrier 的循环特性和构造函数所接受的 Runnable 参数也是 CountDownLatch 所不具备的
+  5.CountDownLatch 是能使一组线程等另一组线程都跑完了再继续跑；
+  CyclicBarrier 能够使一组线程在一个时间点上达到同步，可以是一起开始执行全部任务或者一部分任务。同时，它是可以循环使用的；
+  Semaphore 是只允许一定数量的线程同时执行一段任务。
