@@ -10,6 +10,7 @@ target
 *.iml
 *.ipr
 *.iws
+workspace.xml
 atlassian-ide-plugin.xml
 
 # Android
